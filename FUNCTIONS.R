@@ -11,7 +11,7 @@ FOLDERS <-function(dirFol){
   dir.create(paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes"),showWarnings=F)
   dir.create(paste0(dirFol,"/PROCESS/04_SERIES_DAILY_OK"),showWarnings=F)
   print(paste0("Folders created in ",dirFol),print.gap = 10)
-  }
+}
 
 #Contro de calidad horario
 QCHOURLY <- function(dirFol,Dup=NULL){
@@ -34,7 +34,7 @@ QCHOURLY <- function(dirFol,Dup=NULL){
   nom.files=substring(FilesNames,1,nchar(FilesNames)-4)
   
   Data.all.files=lapply(paste0(Filesroutes,FilesNames),function(x){read.delim(x,sep="\t",header=F,col.names=c("Date", "Hour","Value"),skip = 1)})
-  #Data.all.files=lapply(paste0(Filesroutes,FilesNames),function(x){print(x);return(read.table(x,sep="\t",header=T,blank.lines.skip=TRUE))})
+  Data.all.files=lapply(paste0(Filesroutes,FilesNames),function(x){print(x);return(read.table(x,sep="\t",header=T,blank.lines.skip=TRUE))})
   
   names(Data.all.files)=nom.files
   
@@ -63,15 +63,16 @@ QCHOURLY <- function(dirFol,Dup=NULL){
     filmin=paste0(YStart,"-01-01")
     filmax=paste0(YEnd,"-12-31")
     
-    pb <- winProgressBar(title = "Progress bar - Step 1", min = 0,max = length(Data.all.files), width = 300)
-    
+    #pb <- winProgressBar(title = "Progress bar - Step 1", min = 0,max = length(Data.all.files), width = 300)
+    pb <-txtProgressBar(style = 3)
     for(i in seq_along(Data.all.files)){
      Sys.sleep(0.1)
-     setWinProgressBar(pb, i, title=paste( round(i/length(Data.all.files)*100, 0), "% done"))
-
-      Data.all.files.OK[[i]][,3]=as.numeric(as.character(Data.all.files.OK[[i]][,3]))  ###
+     #setWinProgressBar(pb, i, title=paste( round(i/length(Data.all.files)*100, 0), "% done"))
+      setTxtProgressBar(pb,i)
+      Data.all.files.OK[[i]][,3]=as.numeric(as.character(Data.all.files.OK[[i]][,3]))  #Garantiza trabajar con numeros
       ProbDUP=FALSE
       
+   
       dataFech=Data.all.files.OK[[i]]$Date
       typeOrig=length(grep("-|/",dataFech))
       #Fit format date
@@ -113,6 +114,7 @@ QCHOURLY <- function(dirFol,Dup=NULL){
         ProbDUP=TRUE
         DUPcsv=HOURDATE[which(DUP==TRUE)]
         
+        #Si hay mas de 30 horas consecutivos iguales se genera la alerta
         if(length(DUPcsv)>=30){
         print(paste0("Warning: There is a problem with duplicated hours in the same day in: ",nom.files[i]," but this problem was solved"))
             if(Dup==1){
@@ -142,7 +144,6 @@ QCHOURLY <- function(dirFol,Dup=NULL){
       
       #Mediana de los tiempos entre registros por dia
       MEDIANES=aggregate(Data.all.files.OK[[i]]$DIFF~Data.all.files.OK[[i]]$Date,Data.all.files.OK[[i]],median)
-      
       Data.all.files.OK[[i]]$DIFF[PREMJOUR]=MEDIANES[,2]
       
       ###Para encontrar la cantidad de datos repetidos consecutivos en un dia
@@ -186,12 +187,14 @@ QCHOURLY <- function(dirFol,Dup=NULL){
     resul1=list()
     nom.Summary=0
     if(length(VAReasy)!=0){
-      pb <- winProgressBar(title = "Progress bar - Step 2", min = 0,max = length(Data.all.files), width = 300)  
+      #pb <- winProgressBar(title = "Progress bar - Step 2", min = 0,max = length(Data.all.files), width = 300)  
+      pb <-txtProgressBar(style = 3)
       
       for (j in 1:length(VAReasy)){
         Sys.sleep(0.1)
-        setWinProgressBar(pb, j, title=paste( round(j/length(Data.all.files)*100, 0), "% done"))
-
+        #setWinProgressBar(pb, j, title=paste( round(j/length(Data.all.files)*100, 0), "% done"))
+        setTxtProgressBar(pb,i)  
+        
         modif=0;UNIT=NA
         ProbCohernciaTEMP=FALSE
         IND=VAReasy[j]
@@ -244,11 +247,13 @@ QCHOURLY <- function(dirFol,Dup=NULL){
     resul2=list()
     nom.Summary2=0
     if(length(VARaccu)!=0){
-      pb <- winProgressBar(title = "Progress bar - Step 3", min = 0,
-                           max = length(Data.all.files), width = 300)
+      #pb <- winProgressBar(title = "Progress bar - Step 3", min = 0,max = length(Data.all.files), width = 300)
+      pb <-txtProgressBar(style = 3)
+      
       for (j in 1:length(VARaccu)){
          Sys.sleep(0.1)
-         setWinProgressBar(pb, j, title=paste( round(j/length(Data.all.files)*100, 0), "% done"))
+         #setWinProgressBar(pb, j, title=paste( round(j/length(Data.all.files)*100, 0), "% done"))
+         setTxtProgressBar(pb,i)
         
         UNIT=NA
         ProbCohernciaTEMP=FALSE
@@ -353,7 +358,6 @@ QCHOURLY <- function(dirFol,Dup=NULL){
     
   }
   
-  ##################### END ################
 }
 
 #Convert hour to daily
@@ -374,12 +378,14 @@ CONVERT <- function(dirFol){
   summary=list()
   ###Debo corregir el ciclo, cuando no se puede obtener la conversion de un día 
   ###porque no quedaron datos en el archivo horario falla el proceso
-  pb <- winProgressBar(title = "Progress bar", min = 0,max = length(Data.all.files), width = 300) 
+  #pb <- winProgressBar(title = "Progress bar", min = 0,max = length(Data.all.files), width = 300) 
+  pb <-txtProgressBar(style = 3)
   
   for(i in 1:length(Data.all.files)){
     
     Sys.sleep(0.1)
-    setWinProgressBar(pb, i, title=paste( round(i/length(Data.all.files)*100, 0), "% done"))
+    #setWinProgressBar(pb, i, title=paste( round(i/length(Data.all.files)*100, 0), "% done"))
+    setTxtProgressBar(pb,i)
     print(i)
     modif=0
     # Crear series de trabajo
@@ -855,6 +861,7 @@ QCDAILY <- function(dirFol){
     #     series <- tso(ts(x))
     # }
     # replaceOutliers(x)
+    
     # Detecar valores fuera de rango
     Vmax=REF[,VAR][1];Vmin=REF[,VAR][2]
 
@@ -932,13 +939,16 @@ QCDAILY <- function(dirFol){
         geom_line()+geom_hline(yintercept = c(LI,LU), colour="red",linetype=2)+
         geom_hline(yintercept = c(Vmax,Vmin), colour="blue",linetype=2)+
         annotate("text",x=max(Serie.diaria[[i]]$Date), y=c(LU+1),label="Outlier",colour="red")+ 
-        annotate("text",x=min(Serie.diaria[[i]]$Date), y=c(Vmax+1),label="Ref. Value",colour="blue")}else{
+        annotate("text",x=min(Serie.diaria[[i]]$Date), y=c(Vmax+1),label="Ref. Value",colour="blue")+
+        theme_bw()
+      }else{
           
           qplot(Serie.diaria[[i]]$Date,Serie.diaria[[i]]$Value, ylab="Value", xlab="Date")+
             geom_line()+geom_hline(yintercept = c(LU), colour="red",linetype=2)+
             geom_hline(yintercept = c(Vmax), colour="blue",linetype=2)+
             annotate("text",x=max(Serie.diaria[[i]]$Date), y=c(LU+1),label="Outlier",colour="red")+ 
-            annotate("text",x=min(Serie.diaria[[i]]$Date), y=c(Vmax+1),label="Ref. Value",colour="blue")
+            annotate("text",x=min(Serie.diaria[[i]]$Date), y=c(Vmax+1),label="Ref. Value",colour="blue")+
+            theme_bw()
         }
     ggsave(paste0(Destino,nom.files[i], "_Plotserie.png"), width=25, height=15,units = "cm")
   }
@@ -1301,7 +1311,8 @@ SUMMARY <-function(dirFol,objeto,YStart,YEnd){
   
      gr= ggplot(D,aes(Station,NAs))+geom_bar(colour="black",stat="identity",fill="skyblue")+
        labs(x='Stations',y="% NA")+ ggtitle(paste0("Mising Data, ",objeto))+
-       theme(axis.text.x = element_text(angle = 90, hjust = 1))
+       theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+       theme_bw()
 
 ###Generando grafico de disponibilidad temporal      
      fecha=as.Date(paste0(archivo$year,"-",archivo$month,"-",archivo$day))
@@ -1314,24 +1325,22 @@ SUMMARY <-function(dirFol,objeto,YStart,YEnd){
        archivo[,3+i]=replace(archivo[,3+i],!is.na(archivo[,3+i]),stat[i])
      }
      
-     compare=data.frame(fecha,archivo[,-c(1:3)])
-     datoS=( compare %>% gather(Station,n,-fecha))
+    compare=data.frame(fecha,archivo[,-c(1:3)])
+    datoS=( compare %>% gather(Station,n,-fecha))
      
-     datoS$type = factor(cumsum(c(0, as.numeric(diff(datoS$fecha) - 1))))
-     plot1=ggplot(data=datoS,aes(x=fecha, y=n, colour=Station)) + geom_line(show.legend = FALSE,size=1.25,aes(group=type)) + 
-     labs(title = paste0("Available Data, ",objeto),y='Stations',x='Date')
-     plot=plot1+theme_bw() 
+    datoS$type = factor(cumsum(c(0, as.numeric(diff(datoS$fecha) - 1))))
+    plot1=ggplot(data=datoS,aes(x=fecha, y=n, colour=Station)) + geom_line(show.legend = FALSE,size=1.25,aes(group=type)) + 
+    labs(title = paste0("Available Data, ",objeto),y='Stations',x='Date')
+    plot=plot1+theme_bw() 
      
-     allplot=grid.arrange(gr, plot, ncol=1)
+    allplot=grid.arrange(gr, plot, ncol=1)
      
-     ggsave(paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes/SUMMARY/Summary_",objeto,"_",YStart,"-",YEnd,".png"),plot = allplot,width =14 ,height = 12,dpi = 500)
+    ggsave(paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes/SUMMARY/Summary_",objeto,"_",YStart,"-",YEnd,".png"),plot = allplot,width =14 ,height = 12,dpi = 500)
 
-  write.csv(d,paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes/SUMMARY/",objeto,"_",YStart,"-",YEnd,"_Summary.csv"))
+    write.csv(d,paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes/SUMMARY/",objeto,"_",YStart,"-",YEnd,"_Summary.csv"))
   
   lista=list(d)
   return(lista)
-  
-  
 }
 
 SUMStatxSeason<-function(dirFol,YStart,YEnd,mStart,mEnd){
