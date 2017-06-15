@@ -752,8 +752,8 @@ QCDAILY <- function(dirFol){
     
     #Filtro para descartar estaciones con muy pocos datos
     if(dim(Data.all.filesNAFree[[i]])[1]<30){   #30 es un valor arbitrario para rechazar una estacion con menos de ese numero de dias de info
-      
-      print(paste0("The station ",nom.files[i]," has low or null information during the period of interest, therefore, it cannot be included into the following process"))
+
+      print(paste0("The station ",nom.files[i]," has low information (<30 days) during the period of interest, therefore, it cannot be included into the following process"))
       next
     }
     # Deteccion de duplicados con valores distintos
@@ -781,7 +781,8 @@ QCDAILY <- function(dirFol){
       UNIT=substring(nom.files[i],nchar(nom.files[i])-8, nchar(nom.files[i])-5)
       UNIT=toupper(UNIT)
       if(UNIT=="WAM2"){
-        SerieOPccm2=Data.all.filesNAFree[[i]]$Value*24*60*60/4.18/10000
+        #SerieOPccm2=Data.all.filesNAFree[[i]]$Value*24*60*60/4.18/10000
+        SerieOPccm2=Data.all.filesNAFree[[i]]$Value*(1/10000)*(3600)*(0.238902957) ##igual q la ec anterior pero sin el 24
         Data.all.filesNAFree[[i]]$Value=SerieOPccm2
         #Data.all.filesNAFree[[i]]$Value[which((Data.all.filesNAFree[[i]]$Value>190)==FALSE)]=NA
       }else if(UNIT=="MJM2"){
@@ -823,7 +824,7 @@ QCDAILY <- function(dirFol){
     if(VAR=="TMAX"|VAR=="TMIN"){
       
       x=Data.all.filesNAFree[[i]]$Value
-      #Estas líneas son para identificar variaciones de 10 grados en temp respecto
+      #Estas líneas son para identificar variaciones de 5 grados en temp respecto
       #a la media movil de los n valores anteriores
       n=8;y=0;pos=0
       
@@ -834,13 +835,12 @@ QCDAILY <- function(dirFol){
         y[j]=mean(x[j:(j+n-1)],na.rm = T)
         #con esta condicion comparo el promedio movil con el valor de la serie y lo descarto del siguiente promedio
         #evitando asi que lo infle.
-        if(!is.na(abs(x[n+j]-y[j])) & (abs(x[n+j]-y[j]))>=10){
+        if(!is.na(abs(x[n+j]-y[j])) & (abs(x[n+j]-y[j]))>=5){
             x[n+j]=NA
             pos[j]=n+j
           }
       }
       pos=as.vector(na.omit(pos[-1]))
-      
       #Con este pos y el vector de datos originales puedo guardar los datos anomalos si deseo
       Data.all.filesNAFree[[i]]$Value=x
       
@@ -935,19 +935,23 @@ QCDAILY <- function(dirFol){
     write.table(Serie.diaria[[i]],paste0(Destino,nom.files[i], "_ReadyFillGaps.txt"), sep="\t", row.names=FALSE)
  
     if(VAR!="RAIN"){
-      qplot(Serie.diaria[[i]]$Date,Serie.diaria[[i]]$Value, ylab="Value", xlab="Date")+
+      #qplot(Serie.diaria[[i]]$Date,Serie.diaria[[i]]$Value, ylab="Value", xlab="Date")+
+        ggplot(Serie.diaria[[i]],aes(Date,Value))+ylab("Value")+xlab("Date")+
         geom_line()+geom_hline(yintercept = c(LI,LU), colour="red",linetype=2)+
         geom_hline(yintercept = c(Vmax,Vmin), colour="blue",linetype=2)+
         annotate("text",x=max(Serie.diaria[[i]]$Date), y=c(LU+1),label="Outlier",colour="red")+ 
         annotate("text",x=min(Serie.diaria[[i]]$Date), y=c(Vmax+1),label="Ref. Value",colour="blue")+
+        scale_x_date(date_labels = "%b %y")+
         theme_bw()
       }else{
           
-          qplot(Serie.diaria[[i]]$Date,Serie.diaria[[i]]$Value, ylab="Value", xlab="Date")+
+         # qplot(Serie.diaria[[i]]$Date,Serie.diaria[[i]]$Value, ylab="Value", xlab="Date")+
+          ggplot(Serie.diaria[[i]],aes(Date,Value))+ylab("Value")+xlab("Date")+
             geom_line()+geom_hline(yintercept = c(LU), colour="red",linetype=2)+
             geom_hline(yintercept = c(Vmax), colour="blue",linetype=2)+
             annotate("text",x=max(Serie.diaria[[i]]$Date), y=c(LU+1),label="Outlier",colour="red")+ 
             annotate("text",x=min(Serie.diaria[[i]]$Date), y=c(Vmax+1),label="Ref. Value",colour="blue")+
+            scale_x_date(date_labels = "%b %y")+
             theme_bw()
         }
     ggsave(paste0(Destino,nom.files[i], "_Plotserie.png"), width=25, height=15,units = "cm")
@@ -1297,6 +1301,7 @@ SUMMARY <-function(dirFol,objeto,YStart,YEnd){
   #objeto="TMAX"
   archivo=read.csv(paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes/",objeto,"_to.csv"),header=T)
   archivo=filter(archivo,year %in% c(YStart:YEnd))
+  #head(archivo)
   d=sapply(archivo[-1:-3],descript)
   row.names(d) <-c("n","Min","Max","Media","Varianza","Desv.Est","Mediana","CV %","NA","NA %")
   d=as.data.frame(d)
@@ -1318,21 +1323,30 @@ SUMMARY <-function(dirFol,objeto,YStart,YEnd){
      fecha=as.Date(paste0(archivo$year,"-",archivo$month,"-",archivo$day))
      
      #cantidad y nombre de estaciones
+     
      n=dim(archivo)[2]-3
      stat=names(archivo[,-c(1:3)])
-     
+     #summary(archivo[,3+i])
+     archivo2=matrix(NA,nrow = dim(archivo)[1],ncol = n)
+     #head(archivo2 )
      for(i in 1:n){
-       archivo[,3+i]=replace(archivo[,3+i],!is.na(archivo[,3+i]),stat[i])
+       
+       archivo2[,i]=replace(archivo[,i+3],!is.na(archivo[,i+3]),stat[i])
      }
-     
-    compare=data.frame(fecha,archivo[,-c(1:3)])
-    datoS=( compare %>% gather(Station,n,-fecha))
-     
-    datoS$type = factor(cumsum(c(0, as.numeric(diff(datoS$fecha) - 1))))
-    plot1=ggplot(data=datoS,aes(x=fecha, y=n, colour=Station)) + geom_line(show.legend = FALSE,size=1.25,aes(group=type)) + 
+    
+    compare=data.frame(fecha,archivo2)
+   
+    names(compare)=c("fecha",stat)
+    datoS= compare %>% gather(Station,n,-fecha)
+    datoS=na.omit(datoS)
+    #summary(datoS)
+    datoS$type = as.character(factor(cumsum(c(0, as.numeric(diff(datoS$fecha) - 1)))))
+    
+    
+    plot1=ggplot(data=datoS,aes(x=fecha,y=n,colour=Station)) + geom_point(show.legend = FALSE,size=1,aes(group=type)) + 
     labs(title = paste0("Available Data, ",objeto),y='Stations',x='Date')
     plot=plot1+theme_bw() 
-     
+    
     allplot=grid.arrange(gr, plot, ncol=1)
      
     ggsave(paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes/SUMMARY/Summary_",objeto,"_",YStart,"-",YEnd,".png"),plot = allplot,width =14 ,height = 12,dpi = 500)
@@ -1344,7 +1358,8 @@ SUMMARY <-function(dirFol,objeto,YStart,YEnd){
 }
 
 SUMStatxSeason<-function(dirFol,YStart,YEnd,mStart,mEnd){
-
+  #mStart=1;mEnd=12
+  
   dir.create(paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes/SUMMARY2"),showWarnings=F)
   lf=list.files(paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes/"),pattern = "_to.csv",full.names = T)
   Var=substring(basename(lf),1,nchar(basename(lf))-7)#Variables disponibles
@@ -1371,7 +1386,9 @@ SUMStatxSeason<-function(dirFol,YStart,YEnd,mStart,mEnd){
   colnames(Unif)=c("month","day","year",Var[StPos])
   
   #filtrar season de interes
-  filmin=paste0(YStart,"-",monthStart,"-01");  filmax=paste0(YEnd,"-",(monthEnd+1),"-01")
+  if(mEnd==12){correct=0}else{correct=1}
+  
+  filmin=paste0(YStart,"-",monthStart,"-15");  filmax=paste0(YEnd,"-",(monthEnd+correct),"-15")
   fecha=as.Date(paste0(Unif$year,"-",Unif$month,"-",Unif$day))
   Unif$Dates=fecha
   
@@ -1401,13 +1418,14 @@ SUMStatxSeason<-function(dirFol,YStart,YEnd,mStart,mEnd){
   }
   compare=data.frame(fecha,Unif[,-c(1:3,ncol(Unif))])
   datoS=compare %>% gather(Var,n,-fecha)
-  
+  datoS=na.omit(datoS)
   etapas=c(as.Date(paste0((vecYears),"-",monthStart,"-",01)),as.Date(paste0((vecYears),"-",(monthEnd),"-",28)))
   
   datoS$type = factor(cumsum(c(0, as.numeric(diff(datoS$fecha) - 1))))#para que la línea quede discontinua
-  plot1=ggplot(data=datoS,aes(x=fecha, y=n, colour=Var)) + geom_line(show.legend = FALSE,size=1.25,aes(group=type)) + 
-    labs(title = paste0("Available Data x Season \n",texto," ",EstxVar[i]),y='Variable',x='Date')+geom_vline(xintercept=(as.numeric(as.Date(etapas))),
-                                                                                         linetype=4, colour="black")
+  plot1=ggplot(data=datoS,aes(x=fecha, y=n, colour=Var)) + geom_point(show.legend = FALSE,size=1.25,aes(group=type)) + 
+    labs(title = paste0("Available Data x Season \n",texto," ",EstxVar[i]),y='Variable',x='Date')+
+    geom_vline(xintercept=(as.numeric(as.Date(etapas))),linetype=4, colour="black")
+  
   plot=plot1+theme_bw() 
   ggsave(paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes/SUMMARY2/SumSea_",texto,"_",EstxVar[i],".png"),plot = plot,width =22 ,height = 15,units = "cm")
   }
@@ -1473,21 +1491,20 @@ GENERATOR_T_R<-function(dirFol,YStart,YEnd,DontUse=NULL){
   
   year_min <- YStart;year_max <- YEnd
   origin <- paste0(year_min,"-1-1")
-  valmin <- 1.0;
+  
   n_GPCA_iter <- 10
   n_GPCA_iteration_residuals <- 10
-  n_GPCA_iter_prec <- 20
-  n_GPCA_iteration_residuals_prec <- 20
   
   tmax  <- read.csv(paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes/TMAX_to.csv"), header = TRUE, sep = ",",  dec=".")
   tmin  <- read.csv(paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes/TMIN_to.csv"), header = TRUE, sep = ",",  dec=".")
   preci <- read.csv(paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes/RAIN_to.csv"), header = TRUE, sep = ",",  dec=".")
+  #preci <- read.csv(paste0(dirFol,"/PROCESS/03_SERIES_DAILY_With_Holes/originales/RAIN_to.csv"), header = TRUE, sep = ",",  dec=".")
   
   tmax_1=subset(tmax,tmax$year>=year_min & tmax$year<=year_max)
   tmin_1=subset(tmin,tmin$year>=year_min & tmin$year<=year_max)
   precipitation=subset(preci,preci$year>=year_min & preci$year<=year_max)
   
-  station <- names(tmax_1)[-(1:3)]
+  station <- names(precipitation)[-(1:3)]
   
   #Verificar si las estaciones en los tres archivos son las mismas
   arch1<- names(tmax_1)[-(1:3)];arch2<- names(tmin_1)[-(1:3)];arch3<- names(precipitation)[-(1:3)]
@@ -1521,20 +1538,27 @@ GENERATOR_T_R<-function(dirFol,YStart,YEnd,DontUse=NULL){
   names(exogen_sim) <- cbind(paste(names(generation00_temp$output$Tx_gen),"_Tx",sep=""),paste(names(generation00_temp$output$Tn_gen),"_Tn",sep=""))
   exogen <- cbind(generation00_temp$input$Tx_mes,generation00_temp$input$Tn_mes)
   names(exogen) <- cbind(paste(names(generation00_temp$input$Tx_mes),"_Tx",sep=""),paste(names(generation00_temp$input$Tn_mes),"_Tn",sep=""))
-  head(generation00_temp$input$Tx_mes)
-  
+  #head(generation00_temp$input$Tx_mes)
+  #head(exogen)
   print("Start process of filling gaps in Precipitation") 
   # Precipitation Generator (temperture enters as exogenous variable)
   #fix(ComprehensivePrecipitationGenerator)
+  n_GPCA_iter_prec <- 20
+  n_GPCA_iteration_residuals_prec <-  20
+  valmin <- 0.5
+  
   generation00_prec <- ComprehensivePrecipitationGenerator(station=stationUSE,
                                                            prec_all=precipitation,
                                                            year_min=year_min,
                                                            year_max=year_max,
                                                            exogen=exogen,
                                                            exogen_sim=exogen_sim,
-                                                           p=lag,n_GPCA_iteration=n_GPCA_iter_prec,
+                                                           p=5,n_GPCA_iteration=n_GPCA_iter_prec,
                                                            n_GPCA_iteration_residuals=n_GPCA_iteration_residuals_prec,
-                                                           sample="monthly",valmin=1,extremes=TRUE,no_spline = T)
+                                                           sample="monthly",valmin=valmin,extremes=TRUE,no_spline = TRUE,
+                                                           activateVARselect = FALSE)
+
+  
   
   #-----------------------Gerar Arquivos--------------------------------------------- 
   prec_mes <- generation00_prec$prec_mes
@@ -1855,7 +1879,8 @@ END_GRAPS<-function(dirFol){
     
     yy=length(unique(years(DatosFUS[[i]]$Dates)))# quantity years
     if(yy>=5){brk="2 months"}else{brk="1 month"}
-    
+   
+  
   ggplot(DatosFUS[[i]],aes(Dates,Value,colour=Modif))+geom_line(colour="grey86")+geom_point()+
     ggtitle(paste0(substring(nom.files[i],1,nchar(nom.files[i])-4)))+
     ylab(VarUnd)+ scale_x_date(date_breaks=brk,date_labels="%b-%y",expand = c(0,0))+
@@ -1869,7 +1894,8 @@ END_GRAPS<-function(dirFol){
           legend.direction="horizontal"
           #axis.line = element_line(colour = "black")
           )+
-    scale_color_discrete("",labels=c("Original", "Estimated"))
+    scale_color_discrete(labels=c("Original", "Estimated"))#+
+    #scale_color_manual(values = c("red","blue"),labels=c("Original", "Estimated"))
     
     ggsave(paste0(pat,"END_GRAPHICS/",nom.files[i],".png",sep=""),width =30 ,height = 15,units = "cm",dpi = 100)
       
